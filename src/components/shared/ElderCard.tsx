@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
 import { Elder } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronRight, AlertTriangle } from 'lucide-react';
+import { ChevronRight, AlertTriangle, Activity, Trash2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+import { AddVitalDialog } from '@/components/elder/AddVitalDialog';
+import { Button } from '@/components/ui/button';
 
 interface ElderCardProps {
   elder: Elder;
@@ -10,15 +12,15 @@ interface ElderCardProps {
 }
 
 export function ElderCard({ elder, compact = false }: ElderCardProps) {
-  const { getRemindersForElder, getMedicinesForElder } = useApp();
+  const { getRemindersForElder, getMedicinesForElder, deleteElder } = useApp();
   const reminders = getRemindersForElder(elder.id);
   const medicines = getMedicinesForElder(elder.id);
-  
+
   const todaysReminders = reminders.filter(r => {
     const today = new Date().toISOString().split('T')[0];
     return r.scheduledTime.startsWith(today);
   });
-  
+
   const missedCount = todaysReminders.filter(r => r.status === 'missed').length;
   const takenCount = todaysReminders.filter(r => r.status === 'taken').length;
   const pendingCount = todaysReminders.filter(r => r.status === 'scheduled' || r.status === 'sent').length;
@@ -40,6 +42,29 @@ export function ElderCard({ elder, compact = false }: ElderCardProps) {
                   {missedCount}
                 </span>
               )}
+              <div onClick={(e) => e.preventDefault()}>
+                <AddVitalDialog
+                  elderId={elder.id}
+                  trigger={
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
+                      <Activity className="h-4 w-4" />
+                    </Button>
+                  }
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (confirm("Are you sure you want to remove this family member?")) {
+                    deleteElder(elder.id);
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
               <ChevronRight className="h-5 w-5 text-muted-foreground" />
             </div>
           </CardContent>
@@ -62,9 +87,9 @@ export function ElderCard({ elder, compact = false }: ElderCardProps) {
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground mt-1" />
               </div>
-              
+
               <div className="mt-4 flex flex-wrap gap-2">
-                {elder.conditions.map((condition, idx) => (
+                {elder.conditions?.map((condition, idx) => (
                   <span key={idx} className="px-2 py-1 bg-secondary text-secondary-foreground text-xs rounded-full">
                     {condition}
                   </span>

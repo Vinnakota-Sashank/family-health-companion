@@ -11,98 +11,71 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Plus, 
-  Clock, 
-  MessageSquare, 
+import {
+  Plus,
+  Clock,
+  MessageSquare,
   Phone,
   Calendar,
   Pill,
-  ChevronRight
+  ChevronRight,
+  Edit2,
+  Trash2
 } from 'lucide-react';
-import { MealTiming } from '@/types';
+import { MealTiming, Medicine } from '@/types';
+import { MedicineDialog } from '@/components/medicines/MedicineDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function MedicinesPage() {
-  const { 
-    elders, 
-    medicines, 
-    getTodaysReminders, 
-    addMedicine, 
+  const {
+    elders,
+    medicines,
+    getTodaysReminders,
+    addMedicine,
     updateReminderStatus,
-    snoozeReminder
+    snoozeReminder,
+    deleteMedicine
   } = useApp();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingMedicine, setEditingMedicine] = useState<Medicine | null>(null);
   const [selectedElder, setSelectedElder] = useState<string>(elders[0]?.id || '');
   const [filterElder, setFilterElder] = useState<string>('all');
-
-  // Form state
-  const [medicineName, setMedicineName] = useState('');
-  const [dosage, setDosage] = useState('');
-  const [frequency, setFrequency] = useState('Once daily');
-  const [times, setTimes] = useState<string[]>(['08:00']);
-  const [mealTiming, setMealTiming] = useState<MealTiming>('after');
-  const [duration, setDuration] = useState('Ongoing');
-  const [notes, setNotes] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const todaysReminders = getTodaysReminders();
-  
-  const filteredMedicines = filterElder === 'all' 
-    ? medicines 
+
+  const filteredMedicines = filterElder === 'all'
+    ? medicines
     : medicines.filter(m => m.elderId === filterElder);
 
-  const handleAddMedicine = () => {
-    if (!medicineName || !dosage || !selectedElder) {
-      toast({
-        title: 'Missing information',
-        description: 'Please fill in all required fields.',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const handleEdit = (medicine: Medicine) => {
+    setEditingMedicine(medicine);
+    setIsDialogOpen(true);
+  };
 
-    addMedicine({
-      elderId: selectedElder,
-      name: medicineName,
-      dosage,
-      frequency,
-      times,
-      mealTiming,
-      duration,
-      notes,
-      startDate: new Date().toISOString().split('T')[0],
-    });
-
+  const handleDelete = (id: string) => {
+    deleteMedicine(id);
+    setDeletingId(null);
     toast({
-      title: 'Medicine added',
-      description: `${medicineName} has been added to the schedule.`,
+      title: 'Medicine deleted',
+      description: 'The medicine and its future reminders have been removed.',
     });
-
-    // Reset form
-    setMedicineName('');
-    setDosage('');
-    setFrequency('Once daily');
-    setTimes(['08:00']);
-    setMealTiming('after');
-    setDuration('Ongoing');
-    setNotes('');
-    setIsDialogOpen(false);
   };
 
-  const addTimeSlot = () => {
-    setTimes([...times, '12:00']);
-  };
-
-  const updateTimeSlot = (index: number, value: string) => {
-    const newTimes = [...times];
-    newTimes[index] = value;
-    setTimes(newTimes);
-  };
-
-  const removeTimeSlot = (index: number) => {
-    if (times.length > 1) {
-      setTimes(times.filter((_, i) => i !== index));
-    }
+  const handleDialogChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) setEditingMedicine(null);
   };
 
   return (
@@ -114,147 +87,37 @@ export default function MedicinesPage() {
             <h1 className="text-2xl font-bold">Medicines & Schedule</h1>
             <p className="text-muted-foreground">Manage medications and track adherence</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Add Medicine
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New Medicine</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>For Elder *</Label>
-                  <Select value={selectedElder} onValueChange={setSelectedElder}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select elder" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {elders.map((elder) => (
-                        <SelectItem key={elder.id} value={elder.id}>
-                          {elder.avatar} {elder.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Medicine Name *</Label>
-                  <Input
-                    placeholder="e.g., Metformin"
-                    value={medicineName}
-                    onChange={(e) => setMedicineName(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Dosage *</Label>
-                  <Input
-                    placeholder="e.g., 500mg"
-                    value={dosage}
-                    onChange={(e) => setDosage(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Frequency</Label>
-                  <Select value={frequency} onValueChange={setFrequency}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Once daily">Once daily</SelectItem>
-                      <SelectItem value="Twice daily">Twice daily</SelectItem>
-                      <SelectItem value="Three times daily">Three times daily</SelectItem>
-                      <SelectItem value="As needed">As needed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Time(s)</Label>
-                  {times.map((time, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input
-                        type="time"
-                        value={time}
-                        onChange={(e) => updateTimeSlot(index, e.target.value)}
-                        className="flex-1"
-                      />
-                      {times.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => removeTimeSlot(index)}
-                        >
-                          ×
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addTimeSlot}
-                    className="w-full"
-                  >
-                    + Add Another Time
-                  </Button>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Meal Timing</Label>
-                  <Select value={mealTiming} onValueChange={(v) => setMealTiming(v as MealTiming)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="before">Before food</SelectItem>
-                      <SelectItem value="after">After food</SelectItem>
-                      <SelectItem value="with">With food</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Duration</Label>
-                  <Select value={duration} onValueChange={setDuration}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Ongoing">Ongoing</SelectItem>
-                      <SelectItem value="1 week">1 week</SelectItem>
-                      <SelectItem value="2 weeks">2 weeks</SelectItem>
-                      <SelectItem value="1 month">1 month</SelectItem>
-                      <SelectItem value="3 months">3 months</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Notes (optional)</Label>
-                  <Textarea
-                    placeholder="Special instructions..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-
-                <Button onClick={handleAddMedicine} className="w-full">
-                  Add Medicine
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
+        <Button className="gap-2" onClick={() => setIsDialogOpen(true)}>
+          <Plus className="h-4 w-4" />
+          Add Medicine
+        </Button>
+
+        <MedicineDialog
+          open={isDialogOpen}
+          onOpenChange={handleDialogChange}
+          medicineToEdit={editingMedicine}
+        />
+
+        <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete the medicine and remove all future reminders.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => deletingId && handleDelete(deletingId)}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Tabs */}
         <Tabs defaultValue="schedule" className="space-y-4">
@@ -304,13 +167,12 @@ export default function MedicinesPage() {
                         return (
                           <div
                             key={reminder.id}
-                            className={`p-4 rounded-xl border transition-all ${
-                              reminder.status === 'taken' 
-                                ? 'bg-success/5 border-success/30' 
-                                : reminder.status === 'missed'
+                            className={`p-4 rounded-xl border transition-all ${reminder.status === 'taken'
+                              ? 'bg-success/5 border-success/30'
+                              : reminder.status === 'missed'
                                 ? 'bg-destructive/5 border-destructive/30'
                                 : 'bg-card border-border hover:shadow-card'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-start gap-4">
                               <div className="text-center min-w-[60px]">
@@ -319,7 +181,7 @@ export default function MedicinesPage() {
                                   {medicine?.mealTiming === 'before' ? 'Before' : medicine?.mealTiming === 'after' ? 'After' : 'With'} food
                                 </p>
                               </div>
-                              
+
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
                                   <span className="text-xl">{elder?.avatar}</span>
@@ -331,7 +193,7 @@ export default function MedicinesPage() {
 
                               <div className="flex flex-col items-end gap-2">
                                 <StatusBadge status={reminder.status} />
-                                
+
                                 {/* Reminder indicators */}
                                 <div className="flex gap-2 text-xs">
                                   <span className={`flex items-center gap-1 ${reminder.smsStatus === 'sent' ? 'text-success' : 'text-muted-foreground'}`}>
@@ -467,6 +329,22 @@ export default function MedicinesPage() {
                             📝 {medicine.notes}
                           </p>
                         )}
+
+                        <div className="mt-4 pt-4 border-t flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleEdit(medicine)}>
+                            <Edit2 className="h-3 w-3 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeletingId(medicine.id)}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Delete
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   );

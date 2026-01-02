@@ -14,6 +14,7 @@ export interface Elder {
   allergies: string[];
   primaryCaregiver: string;
   caregiverPhone: string;
+  vitals: Vital[];
 }
 
 export interface Medicine {
@@ -41,10 +42,12 @@ export interface Reminder {
   takenAt?: string;
 }
 
+export type VitalType = 'BP' | 'Sugar' | 'Heart Rate' | 'SpO2' | 'Temp' | 'Weight';
+
 export interface Vital {
   id: string;
   elderId: string;
-  type: 'blood_pressure' | 'blood_sugar' | 'heart_rate' | 'temperature' | 'weight';
+  type: VitalType;
   value: string;
   unit: string;
   recordedAt: string;

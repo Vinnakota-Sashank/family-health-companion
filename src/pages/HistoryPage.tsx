@@ -2,9 +2,9 @@ import { useApp } from '@/context/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  History, 
-  AlertTriangle, 
+import {
+  History,
+  AlertTriangle,
   Bell,
   FileText,
   Pill,
@@ -127,7 +127,7 @@ CONTACT: ${elder?.caregiverPhone}
                     {/* Timeline */}
                     <div className="relative">
                       <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border" />
-                      
+
                       {/* Prescriptions */}
                       {elderPrescriptions.map((presc) => (
                         <div key={presc.id} className="relative pl-8 pb-4">
@@ -156,11 +156,10 @@ CONTACT: ${elder?.caregiverPhone}
                       {/* Care Plan Events */}
                       {elderEvents.map((event) => (
                         <div key={event.id} className="relative pl-8 pb-4">
-                          <div className={`absolute left-1 w-4 h-4 rounded-full flex items-center justify-center ${
-                            event.type === 'condition' ? 'bg-warning' :
-                            event.type === 'appointment' ? 'bg-success' :
-                            'bg-secondary'
-                          }`}>
+                          <div className={`absolute left-1 w-4 h-4 rounded-full flex items-center justify-center ${event.type === 'condition' ? 'bg-warning' :
+                              event.type === 'appointment' ? 'bg-success' :
+                                'bg-secondary'
+                            }`}>
                             {event.type === 'appointment' && <Calendar className="h-2 w-2 text-success-foreground" />}
                             {event.type === 'condition' && <Activity className="h-2 w-2 text-warning-foreground" />}
                             {event.type === 'vitals' && <Activity className="h-2 w-2" />}
@@ -209,14 +208,28 @@ CONTACT: ${elder?.caregiverPhone}
                           <p className="text-sm text-muted-foreground">Emergency Health Card</p>
                         </div>
                       </div>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
                         className="gap-2"
                         onClick={() => handleCopyEmergencyCard(elder.id)}
                       >
                         <Copy className="h-4 w-4" />
                         Copy
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="gap-2 bg-destructive hover:bg-destructive/90"
+                        onClick={() => {
+                          toast({
+                            title: `Calling ${elder.primaryCaregiver}...`,
+                            description: "Simulating emergency call...",
+                            duration: 3000
+                          });
+                        }}
+                      >
+                        <Phone className="h-4 w-4" />
+                        Call Caregiver
                       </Button>
                     </div>
                   </CardHeader>
@@ -342,8 +355,8 @@ CONTACT: ${elder?.caregiverPhone}
                         <div className="mt-2 text-xs text-muted-foreground">
                           Status: <span className={
                             log.status === 'taken' ? 'text-success' :
-                            log.status === 'missed' ? 'text-destructive' :
-                            'text-warning'
+                              log.status === 'missed' ? 'text-destructive' :
+                                'text-warning'
                           }>{log.status}</span>
                         </div>
                       </div>

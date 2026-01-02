@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { useApp } from '@/context/AppContext';
+import { analyzePrescription } from '@/services/geminiService';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { TrendBadge } from '@/components/shared/StatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Upload, 
-  FileText, 
-  Brain, 
+import { Input } from '@/components/ui/input';
+import {
+  Upload,
+  FileText,
+  Brain,
   Calendar,
   CheckCircle2,
   AlertCircle,
@@ -19,33 +21,66 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { Medicine } from '@/types';
+import { AIChatAssistant } from '@/components/ai/AIChatAssistant';
+import { VitalsChart } from '@/components/analytics/VitalsChart';
+import { Activity } from 'lucide-react';
 
 export default function AIInsightsPage() {
-  const { elders, healthSummaries, addMedicine, addPrescription } = useApp();
+  const { elders, healthSummaries, addMedicine, addPrescription, getVitalsForElder } = useApp();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [parsedMedicines, setParsedMedicines] = useState<Partial<Medicine>[]>([]);
   const [selectedElderId, setSelectedElderId] = useState<string>(elders[0]?.id || '');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const handlePrescriptionUpload = async () => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setSelectedFile(file);
+  };
+
+  const handleScan = async () => {
+    if (!selectedFile) return;
+
     setIsProcessing(true);
-    
-    // Simulate AI processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const mockParsedMedicines: Partial<Medicine>[] = [
-      { name: 'Atorvastatin', dosage: '20mg', frequency: 'Once daily', mealTiming: 'after' },
-      { name: 'Aspirin', dosage: '75mg', frequency: 'Once daily', mealTiming: 'after' },
-      { name: 'Pantoprazole', dosage: '40mg', frequency: 'Once daily', mealTiming: 'before' },
-    ];
-    
-    setParsedMedicines(mockParsedMedicines);
-    setIsProcessing(false);
-    
-    toast({
-      title: 'Prescription Analyzed',
-      description: 'AI has extracted 3 medicines from the prescription.',
-    });
+
+    try {
+      const result = await analyzePrescription(selectedFile, selectedElderId);
+
+      if (result && result.medicines) {
+        // Convert parsed format to ParsedMedicine (Partial<Medicine>)
+        const mappedMedicines: Partial<Medicine>[] = result.medicines.map(m => ({
+          name: m.name || '',
+          dosage: m.dosage || '',
+          frequency: m.frequency || '',
+          mealTiming: (m.timing && m.timing.toLowerCase().includes('before')) ? 'before' :
+            (m.timing && m.timing.toLowerCase().includes('with')) ? 'with' : 'after',
+          duration: m.duration || '',
+          notes: m.instructions || ''
+        }));
+
+        setParsedMedicines(mappedMedicines);
+
+        toast({
+          title: 'Prescription Analyzed',
+          description: `AI has extracted ${mappedMedicines.length} medicines from the prescription.`,
+        });
+      } else {
+        toast({
+          title: 'Analysis Failed',
+          description: 'Could not extract medicines. Please try a clearer image.',
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to analyze prescription. Please try again.',
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleAddParsedMedicines = () => {
@@ -78,6 +113,13 @@ export default function AIInsightsPage() {
     });
 
     setParsedMedicines([]);
+    setSelectedFile(null);
+  };
+
+  const updateParsedMedicine = (index: number, field: keyof Medicine, value: string) => {
+    const updated = [...parsedMedicines];
+    updated[index] = { ...updated[index], [field]: value };
+    setParsedMedicines(updated);
   };
 
   const doctorVisitChecklist = [
@@ -111,7 +153,11 @@ export default function AIInsightsPage() {
 
         {/* Tabs */}
         <Tabs defaultValue="prescription" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="ai-assistant" className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              AI Assistant
+            </TabsTrigger>
             <TabsTrigger value="prescription" className="gap-2">
               <Upload className="h-4 w-4" />
               Prescription
@@ -125,6 +171,29 @@ export default function AIInsightsPage() {
               Doctor Visit
             </TabsTrigger>
           </TabsList>
+
+          {/* AI Assistant Tab */}
+          <TabsContent value="ai-assistant" className="space-y-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <p className="text-sm font-medium">Select Profile:</p>
+                <div className="flex gap-2">
+                  {elders.map((elder) => (
+                    <Button
+                      key={elder.id}
+                      variant={selectedElderId === elder.id ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedElderId(elder.id)}
+                      className="gap-2"
+                    >
+                      {elder.avatar} {elder.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <AIChatAssistant elderId={selectedElderId} />
+            </div>
+          </TabsContent>
 
           {/* Prescription Upload Tab */}
           <TabsContent value="prescription" className="space-y-4">
@@ -156,15 +225,51 @@ export default function AIInsightsPage() {
                   </div>
                 </div>
 
-                <div 
-                  className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
-                  onClick={handlePrescriptionUpload}
-                >
-                  <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="font-medium">Click to upload prescription</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Supports JPG, PNG, PDF (Demo: Click to simulate)
-                  </p>
+                <div className="relative">
+                  {!selectedElderId ? (
+                    <div>
+                      <div className="border-2 border-dashed border-border rounded-xl p-8 text-center bg-secondary/10">
+                        <p className="text-muted-foreground">Please select an elder profile above to upload</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {!selectedFile ? (
+                        <div className="relative">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            onChange={handleFileSelect}
+                            disabled={isProcessing}
+                          />
+                          <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/50 transition-colors">
+                            <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                            <p className="font-medium">Click to select prescription image</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Supports JPG, PNG, WEBP
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border-2 border-border rounded-xl p-6 text-center bg-secondary/10">
+                          <FileText className="h-8 w-8 mx-auto text-primary mb-2" />
+                          <p className="font-medium mb-1">{selectedFile.name}</p>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                          <div className="flex gap-2 justify-center">
+                            <Button variant="outline" onClick={() => setSelectedFile(null)} disabled={isProcessing}>
+                              Change File
+                            </Button>
+                            <Button onClick={handleScan} disabled={isProcessing}>
+                              {isProcessing ? 'Scanning...' : 'Scan Prescription'}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 {isProcessing && (
@@ -183,20 +288,45 @@ export default function AIInsightsPage() {
                       <CheckCircle2 className="h-5 w-5" />
                       <span className="font-medium">AI-Parsed Medicines</span>
                     </div>
-                    
+
                     <div className="space-y-3">
                       {parsedMedicines.map((med, idx) => (
-                        <div key={idx} className="p-4 rounded-lg bg-success/5 border border-success/20">
-                          <div className="flex items-center justify-between">
+                        <div key={idx} className="p-4 rounded-lg bg-background border border-border space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <p className="font-semibold">{med.name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {med.dosage} • {med.frequency} • {med.mealTiming} food
-                              </p>
+                              <label className="text-xs font-medium text-muted-foreground">Medicine Name</label>
+                              <Input
+                                value={med.name}
+                                onChange={(e) => updateParsedMedicine(idx, 'name', e.target.value)}
+                                placeholder="Name"
+                              />
                             </div>
-                            <span className="text-xs px-2 py-1 bg-success/10 text-success rounded-full">
-                              AI-generated
-                            </span>
+                            <div>
+                              <label className="text-xs font-medium text-muted-foreground">Dosage</label>
+                              <Input
+                                value={med.dosage}
+                                onChange={(e) => updateParsedMedicine(idx, 'dosage', e.target.value)}
+                                placeholder="e.g. 500mg"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-medium text-muted-foreground">Frequency</label>
+                              <Input
+                                value={med.frequency}
+                                onChange={(e) => updateParsedMedicine(idx, 'frequency', e.target.value)}
+                                placeholder="e.g. Twice daily"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-muted-foreground">Timing</label>
+                              <Input
+                                value={med.mealTiming}
+                                onChange={(e) => updateParsedMedicine(idx, 'mealTiming', e.target.value)}
+                                placeholder="before/after/with"
+                              />
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -245,9 +375,31 @@ export default function AIInsightsPage() {
                         <span className="text-2xl font-bold text-primary">{summary.adherenceRate}%</span>
                       </div>
                       <div className="w-full h-3 bg-secondary rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className="h-full bg-primary rounded-full transition-all"
                           style={{ width: `${summary.adherenceRate}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Vitals Charts */}
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-1">
+                        <Activity className="h-4 w-4" />
+                        Vitals Trends
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <VitalsChart
+                          title="Blood Pressure"
+                          type="BP"
+                          data={getVitalsForElder(elder.id)}
+                          color="#ef4444"
+                        />
+                        <VitalsChart
+                          title="Blood Sugar"
+                          type="Sugar"
+                          data={getVitalsForElder(elder.id)}
+                          color="#3b82f6"
                         />
                       </div>
                     </div>
@@ -360,6 +512,6 @@ export default function AIInsightsPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </AppLayout>
+    </AppLayout >
   );
 }

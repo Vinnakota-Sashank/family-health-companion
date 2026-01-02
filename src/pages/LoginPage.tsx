@@ -7,11 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Heart, Shield, Bell, Users, ArrowRight, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { signIn, signUp } from '@/services/authService';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const { login } = useApp();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -20,23 +22,36 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    const success = await login(email, password);
-    
-    if (success) {
-      toast({
-        title: 'Welcome to MediMinds!',
-        description: 'You are now logged in as the family caregiver.',
-      });
+    try {
+      if (isSignUp) {
+        await signUp(email, password);
+        toast({
+          title: 'Account created!',
+          description: 'You are now signed up and logged in.',
+        });
+      } else {
+        await signIn(email, password);
+        toast({
+          title: 'Welcome back!',
+          description: 'You have successfully signed in.',
+        });
+      }
+
+      // Sync with local app context
+      // Note: passing password to local login as it might be used by mock logic, 
+      // but in real app we'd just set the user object.
+      await login(email, password);
       navigate('/dashboard');
-    } else {
+    } catch (error: any) {
+      console.error(error);
       toast({
-        title: 'Login failed',
-        description: 'Please check your credentials and try again.',
+        title: isSignUp ? 'Sign up failed' : 'Login failed',
+        description: error.message || 'Please check your credentials and try again.',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   const features = [
@@ -78,15 +93,15 @@ export default function LoginPage() {
             </div>
 
             <p className="text-lg lg:text-xl text-foreground mb-8 leading-relaxed">
-              The smart way to care for your elderly family members. 
-              <span className="text-primary font-medium"> You manage everything</span> — 
+              The smart way to care for your elderly family members.
+              <span className="text-primary font-medium"> You manage everything</span> —
               they receive gentle reminders via SMS or voice calls.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
               {features.map((feature, idx) => (
-                <div 
-                  key={idx} 
+                <div
+                  key={idx}
                   className="flex items-start gap-3 p-4 rounded-xl bg-card shadow-card animate-fade-in"
                   style={{ animationDelay: `${idx * 100}ms` }}
                 >
@@ -106,7 +121,7 @@ export default function LoginPage() {
               <div>
                 <p className="text-sm font-medium text-foreground">How it works</p>
                 <p className="text-xs text-muted-foreground">
-                  You (the caregiver) manage all health data here. Your elders don't need to use any app — 
+                  You (the caregiver) manage all health data here. Your elders don't need to use any app —
                   they simply receive reminders on their phone.
                 </p>
               </div>
@@ -119,8 +134,12 @@ export default function LoginPage() {
           <Card className="w-full max-w-md shadow-elevated border-0">
             <CardContent className="p-8">
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-foreground">Welcome Back</h2>
-                <p className="text-muted-foreground mt-2">Sign in to manage your family's health</p>
+                <h2 className="text-2xl font-bold text-foreground">
+                  {isSignUp ? 'Create Account' : 'Welcome Back'}
+                </h2>
+                <p className="text-muted-foreground mt-2">
+                  {isSignUp ? 'Sign up to care for your family' : 'Sign in to manage your family\'s health'}
+                </p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -146,33 +165,45 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    minLength={4}
+                    minLength={6}
                     className="h-12"
                   />
                 </div>
 
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full h-12 text-base font-semibold gap-2"
                   disabled={isLoading}
                 >
                   {isLoading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Signing in...
+                      {isSignUp ? 'Creating Account...' : 'Signing in...'}
                     </>
                   ) : (
                     <>
-                      Sign In
+                      {isSignUp ? 'Sign Up' : 'Sign In'}
                       <ArrowRight className="h-5 w-5" />
                     </>
                   )}
                 </Button>
               </form>
 
+              <div className="mt-6 text-center">
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(!isSignUp)}
+                  className="text-sm text-primary hover:underline font-medium"
+                >
+                  {isSignUp
+                    ? 'Already have an account? Sign In'
+                    : 'Don\'t have an account? Sign Up'}
+                </button>
+              </div>
+
               <div className="mt-6 p-4 rounded-lg bg-secondary/50 text-center">
                 <p className="text-sm text-muted-foreground">
-                  Demo: Enter any email and password (4+ characters)
+                  Demo: Use a real email to test Firebase Auth (password 6+ chars)
                 </p>
               </div>
 

@@ -1,32 +1,56 @@
+import { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ElderCard } from '@/components/shared/ElderCard';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Link } from 'react-router-dom';
-import { 
-  Plus, 
-  Calendar, 
-  FileText, 
+import {
+  Plus,
+  Calendar,
+  FileText,
   Activity,
   Clock,
   ChevronRight,
   Pill,
   Heart,
-  CalendarCheck
+  CalendarCheck,
+  Loader2,
+  Users
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
-  const { 
-    user, 
-    elders, 
-    getTodaysReminders, 
+  const {
+    user,
+    elders,
+    getTodaysReminders,
     medicines,
     appointments,
     vitals,
-    updateReminderStatus 
+    updateReminderStatus,
+    addElder,
+    isLoading
   } = useApp();
+  const { toast } = useToast();
+
+  const [isAddElderOpen, setIsAddElderOpen] = useState(false);
+  const [isAddingElder, setIsAddingElder] = useState(false);
+  const [newElderName, setNewElderName] = useState('');
+  const [newElderAge, setNewElderAge] = useState('');
+  const [newElderRelation, setNewElderRelation] = useState('');
 
   const todaysReminders = getTodaysReminders();
   const currentHour = new Date().getHours();
@@ -41,12 +65,59 @@ export default function DashboardPage() {
     vitalsRecorded: vitals.length,
   };
 
+  const handleAddElder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newElderName || !newElderAge || !newElderRelation) return;
+
+    setIsAddingElder(true);
+    try {
+      await addElder({
+        name: newElderName,
+        age: parseInt(newElderAge),
+        relation: newElderRelation,
+        vitals: [],
+        avatar: '👴',
+        conditions: [],
+        allergies: [],
+        primaryCaregiver: user?.name || 'Caregiver',
+        caregiverPhone: '',
+      });
+      toast({
+        title: "Family Member Added",
+        description: `${newElderName} has been added to your profile.`,
+      });
+      setIsAddElderOpen(false);
+      setNewElderName('');
+      setNewElderAge('');
+      setNewElderRelation('');
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add family member. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAddingElder(false);
+    }
+  };
+
   const quickActions = [
     { icon: Plus, label: 'Add Medicine', path: '/medicines', color: 'bg-primary text-primary-foreground' },
     { icon: Calendar, label: 'View Schedule', path: '/medicines', color: 'bg-secondary text-secondary-foreground' },
     { icon: FileText, label: 'Upload Prescription', path: '/ai-insights', color: 'bg-secondary text-secondary-foreground' },
     { icon: Activity, label: 'Weekly Summary', path: '/ai-insights', color: 'bg-secondary text-secondary-foreground' },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-muted-foreground font-medium">Loading family health data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AppLayout>
@@ -94,9 +165,8 @@ export default function DashboardPage() {
                 <Link key={idx} to={action.path}>
                   <Button
                     variant="outline"
-                    className={`w-full h-auto py-4 flex flex-col items-center gap-2 hover:shadow-card transition-all ${
-                      idx === 0 ? 'bg-primary text-primary-foreground hover:bg-primary/90 border-primary' : ''
-                    }`}
+                    className={`w-full h-auto py-4 flex flex-col items-center gap-2 hover:shadow-card transition-all ${idx === 0 ? 'bg-primary text-primary-foreground hover:bg-primary/90 border-primary' : ''
+                      }`}
                   >
                     <action.icon className="h-5 w-5" />
                     <span className="text-sm font-medium">{action.label}</span>
@@ -112,17 +182,87 @@ export default function DashboardPage() {
           <Card className="shadow-card">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-lg">Family Members</CardTitle>
-              <Link to="/elder/elder-1">
-                <Button variant="ghost" size="sm" className="gap-1">
-                  View All
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </Link>
+
+              <Dialog open={isAddElderOpen} onOpenChange={setIsAddElderOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-1 h-8">
+                    <Plus className="h-4 w-4" />
+                    Add Member
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Family Member</DialogTitle>
+                    <DialogDescription>
+                      Add details of the elder you are caring for.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleAddElder} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Full Name</Label>
+                      <Input
+                        id="name"
+                        placeholder="e.g. Ramesh Gupta"
+                        value={newElderName}
+                        onChange={(e) => setNewElderName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="age">Age</Label>
+                        <Input
+                          id="age"
+                          type="number"
+                          placeholder="e.g. 72"
+                          value={newElderAge}
+                          onChange={(e) => setNewElderAge(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="relation">Relation</Label>
+                        <Input
+                          id="relation"
+                          placeholder="e.g. Father"
+                          value={newElderRelation}
+                          onChange={(e) => setNewElderRelation(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" disabled={isAddingElder}>
+                        {isAddingElder ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Adding...
+                          </>
+                        ) : (
+                          "Add Member"
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent className="space-y-3">
-              {elders.map((elder) => (
-                <ElderCard key={elder.id} elder={elder} compact />
-              ))}
+              {elders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="bg-secondary/30 p-4 rounded-full mb-3">
+                    <Users className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="text-muted-foreground font-medium">No family members added yet</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                    Add your parents or grandparents to start tracking their health.
+                  </p>
+                </div>
+              ) : (
+                elders.map((elder) => (
+                  <ElderCard key={elder.id} elder={elder} compact />
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -139,9 +279,15 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               {todaysReminders.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  No medicines scheduled for today
-                </p>
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="bg-success/10 p-3 rounded-full mb-3">
+                    <CalendarCheck className="h-6 w-6 text-success" />
+                  </div>
+                  <p className="text-muted-foreground font-medium">All caught up!</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    No medicines scheduled for today.
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {todaysReminders.slice(0, 5).map((reminder) => {
